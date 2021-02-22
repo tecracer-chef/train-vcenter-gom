@@ -68,7 +68,7 @@ class Support
 
       stderr = read_file(temp_err)
 
-      if cleanup
+      if @cleanup
         delete_file(temp_file)
         delete_file(temp_out)
         delete_file(temp_err)
@@ -81,7 +81,7 @@ class Support
     def exist?(remote_file)
       logger.debug format("Checking for remote file %s", remote_file)
 
-      @gom.fileManager.ListFilesInGuest(vm: @vm, auth: @guest_auth, filePath: remote_file)
+      gom.fileManager.ListFilesInGuest(vm: @vm, auth: @guest_auth, filePath: remote_file)
 
       true
     rescue RbVmomi::Fault
@@ -98,7 +98,7 @@ class Support
     def write_file(remote_file, contents)
       logger.debug format("Writing to remote file %s", remote_file)
 
-      put_url = @gom.fileManager.InitiateFileTransferToGuest(
+      put_url = gom.fileManager.InitiateFileTransferToGuest(
         vm: @vm,
         auth: @guest_auth,
         guestFilePath: remote_file,
@@ -125,7 +125,7 @@ class Support
     def write_temp_file(contents, prefix: "", suffix: "")
       logger.debug format("Writing to temporary remote file")
 
-      temp_name = @gom.fileManager.CreateTemporaryFileInGuest(vm: @vm, auth: @guest_auth, prefix: prefix, suffix:suffix)
+      temp_name = gom.fileManager.CreateTemporaryFileInGuest(vm: @vm, auth: @guest_auth, prefix: prefix, suffix:suffix)
       write_file(temp_name, contents)
 
       temp_name
@@ -142,7 +142,7 @@ class Support
     def download_file(remote_file, local_file)
       logger.debug format("Downloading remote file %s to %s", local_file, remote_file)
 
-      info = @gom.fileManager.InitiateFileTransferFromGuest(vm: @vm, auth: @guest_auth, guestFilePath: remote_file)
+      info = gom.fileManager.InitiateFileTransferFromGuest(vm: @vm, auth: @guest_auth, guestFilePath: remote_file)
       uri = URI.parse(info.url)
 
       request = Net::HTTP::Get.new(uri.request_uri)
@@ -159,7 +159,7 @@ class Support
     def delete_file(remote_file)
       logger.debug format("Deleting remote file %s", remote_file)
 
-      @gom.fileManager.DeleteFileInGuest(vm: @vm, auth: @guest_auth, filePath: remote_file)
+      gom.fileManager.DeleteFileInGuest(vm: @vm, auth: @guest_auth, filePath: remote_file)
 
       true
     rescue RbVmomi::Fault => e
@@ -171,7 +171,7 @@ class Support
     def delete_directory(remote_dir, recursive: true)
       logger.debug format("Deleting remote directory %s", remote_dir)
 
-      @gom.fileManager.DeleteDirectoryInGuest(vm: @vm, auth: @guest_auth, directoryPath: remote_dir, recursive: recursive)
+      gom.fileManager.DeleteDirectoryInGuest(vm: @vm, auth: @guest_auth, directoryPath: remote_dir, recursive: recursive)
 
       true
     rescue RbVmomi::Fault => e
@@ -225,9 +225,10 @@ class Support
     def run_program(path, args = "", timeout = 60.0)
       logger.debug format("Running %s %s", path, args)
 
-      pid = @gom.processManager.StartProgramInGuest(vm: @vm, auth: @guest_auth, spec: RbVmomi::VIM::GuestProgramSpec.new(programPath: path, arguments: args))
-      wait_for_process_exit(pid, timeout)
+      gp_spec = RbVmomi::VIM::GuestProgramSpec.new(programPath: path, arguments: args)
+      pid = gom.processManager.StartProgramInGuest(vm: @vm, auth: @guest_auth, spec: gp_spec)
 
+      wait_for_process_exit(pid, timeout)
       process_exit_code(pid)
     end
 
@@ -245,7 +246,7 @@ class Support
     end
 
     def process_running?(pid)
-      procs = @gom.processManager.ListProcessesInGuest(vm: @vm, auth: @guest_auth, pids: [pid])
+      procs = gom.processManager.ListProcessesInGuest(vm: @vm, auth: @guest_auth, pids: [pid])
       procs.empty? || procs.any? { |gpi| gpi.exitCode.nil? }
     end
 
