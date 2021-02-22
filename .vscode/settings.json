@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "rebornix.ruby",
+    "editorconfig.editorconfig"
+  ],
+  "files.exclude": {
+  }
+}

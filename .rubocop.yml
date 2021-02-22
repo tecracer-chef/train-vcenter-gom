@@ -1,0 +1,21 @@
+AllCops:
+  TargetRubyVersion: 2.6
+  NewCops: enable
+  Exclude:
+    - Guardfile
+    - Rakefile
+
+Layout/LineLength:
+  Max: 160
+
+Metrics/AbcSize:
+  Enabled: false
+Metrics/MethodLength:
+  Enabled: false
+
+Naming/FileName:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
