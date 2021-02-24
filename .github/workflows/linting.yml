@@ -1,0 +1,25 @@
+---
+name: Linting
+
+on: push
+
+jobs:
+  lint:
+    name: Lint code
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+
+      - name: Install necessary gems
+        run: |
+          bundle config set --local with 'development'
+          bundle install
+
+      - name: Run Code Linting
+        run: rake lint
+
+      - name: Run Markdown Linting
+        run: rake lint:markdown

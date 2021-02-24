@@ -10,5 +10,6 @@ group :development do
   gem "mdl", "~> 0.11"
   gem "pry", "~> 0.14"
   gem "rake", "~> 13.0"
+  gem "train", "~> 3.5"
   gem "yard", "~> 0.9"
 end
