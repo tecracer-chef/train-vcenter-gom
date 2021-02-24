@@ -44,6 +44,9 @@ gem install train-vsphere-gom
 | `vcenter_password` | VCenter password                                       | _required_ | `VI_PASSWORD` |
 | `vcenter_insecure` | Allow connections when SSL certificate is not matching | `false`    |               |
 | `logger`           | Logger instance                                        | $stdout, info |            |
+| `quick`            | Enable quick mode                                      | `false`    |               |
+| `shell_type`       | Shell type ("auto", "linux", "cmd", "powershell")      | `auto`     |               |
+| `timeout`          | Timeout in seconds                                     | `60`       |               |
 
 By design, Train VSphere GOM requires two authentication steps: One to get access to the VCenter API and one
 to get access to the guest VM with local credentials.
@@ -52,10 +55,18 @@ VMs can be searched by their IP address, their UUID, their VMware inventory path
 
 The environment variables are aligned to those from VMware SDK and ESXCLI.
 
+## Quick Mode
+
+In quick mode, non-essential operations are omitted to save time over slow connections.
+
+- no deletion of temporary files (in system temp directory)
+- no checking for file existance before trying to read
+- only reading standard error, if exit code was not zero
+
 ## Limitations
 
 - SSPI based guest VM logins are not supported yet
-- the guest VM (`host`) can not be searched by MOR ID yet
+- using PowerShell via GOM is very slow (7-10 seconds roundtrip)
 
 ## Example use
 

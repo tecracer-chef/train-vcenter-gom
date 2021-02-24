@@ -1,3 +1,4 @@
+---
 AllCops:
   TargetRubyVersion: 2.6
   NewCops: enable
@@ -18,4 +19,3 @@ Naming/FileName:
 
 Style/FrozenStringLiteralComment:
   Enabled: false
-

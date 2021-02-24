@@ -6,42 +6,41 @@ class Support
   class GuestOperations
     SHELL_TYPES = {
       linux: {
-        cmd:    '/bin/sh',
-        suffix: '.sh',
-        args:   '-c ". %<cmdfile>s" > %<outfile>s 2> %<errfile>s'
+        suffix: ".sh",
+        cmd:    "/bin/sh",
+        args:   '-c ". %<cmdfile>s" > %<outfile>s 2> %<errfile>s',
       },
 
-      # TODO: Test
+      # BUG: Includes prompt
       cmd: {
-        cmd:    'cmd.exe',
-        suffix: '.cmd',
-        args:   '/c "%<cmdfile>s" > %<outfile>s 2> %<errfile>s',
+        suffix: ".cmd",
+        cmd:    "cmd.exe",
+        args:   '/s /c "%<cmdfile>s" > %<outfile>s 2> %<errfile>s',
       },
 
-      # TODO
+      # Invoking PS via cmd seems the only way to get this to work
       powershell: {
-        cmd:    'C:\Windows\System32\WindowsPowershell\v1.0\powershell.exe',
-        suffix: '.ps1',
-        # args:   '-ExecutionPolicy Bypass -File %<cmdfile>s >%<outfile>s 2>%<errfile>s',
-        args:   '-ExecutionPolicy Bypass -File %<cmdfile>s 2> %<errfile>s | Out-File -FilePath %<outfile>s -Encoding ASCII',
-      }
+        suffix: ".ps1",
+        cmd:    "cmd.exe",
+        args:   "/C powershell -NonInteractive -ExecutionPolicy Bypass -File %<cmdfile>s >%<outfile>s 2>%<errfile>s",
+      },
     }.freeze
 
     attr_writer :gom, :logger
 
-    def initialize(vim, vm, username, password, ssl_verify: true, logger: nil, cleanup: true)
+    def initialize(vim, vm, username, password, ssl_verify: true, logger: nil, quick: false)
       @vim = vim
       @vm = vm
 
       @guest_auth = RbVmomi::VIM::NamePasswordAuthentication(interactiveSession: false, username: username, password: password)
 
       @ssl_verify = ssl_verify
-      @cleanup = cleanup
+      @quick = quick
     end
 
     # Required privileges: VirtualMachine.GuestOperations.Execute, VirtualMachine.GuestOperations.Modify
-    def run(command, shell_type = :auto, timeout = 60.0)
-      logger.debug format("Running '%s' remotely", command)
+    def run(command, shell_type: :auto, timeout: 60.0)
+      logger.debug format("Running `%s` remotely", command)
 
       if shell_type == :auto
         shell_type = :linux if linux?
@@ -49,7 +48,10 @@ class Support
       end
 
       shell = SHELL_TYPES[shell_type]
-      raise "Unsupported shell type #{shell_type.to_s}" unless shell
+      raise "Unsupported shell type #{shell_type}" unless shell
+
+      logger.warn "Command execution on Windows is very slow" unless @warned || linux?
+      @warned = true
 
       temp_file = write_temp_file(command, suffix: shell[:suffix] || "")
       temp_out  = "#{temp_file}-out.txt"
@@ -66,15 +68,15 @@ class Support
       stdout = read_file(temp_out)
       stdout = ascii_only(stdout) if bom?(stdout)
 
-      stderr = read_file(temp_err)
+      stderr = read_file(temp_err) unless exit_code == 0 && @quick
 
-      if @cleanup
+      unless @quick
         delete_file(temp_file)
         delete_file(temp_out)
         delete_file(temp_err)
       end
 
-      ::Train::Extras::CommandResult.new(stdout, stderr, exit_code)
+      ::Train::Extras::CommandResult.new(stdout, stderr || "", exit_code)
     end
 
     # Required privilege: VirtualMachine.GuestOperations.Query
@@ -89,9 +91,9 @@ class Support
     end
 
     def read_file(remote_file)
-      return "" unless exist?(remote_file)
+      return "" unless @quick || exist?(remote_file)
 
-      download_file(remote_file, nil)
+      download_file(remote_file, nil) || ""
     end
 
     # Required privilege: VirtualMachine.GuestOperations.Modify
@@ -125,7 +127,7 @@ class Support
     def write_temp_file(contents, prefix: "", suffix: "")
       logger.debug format("Writing to temporary remote file")
 
-      temp_name = gom.fileManager.CreateTemporaryFileInGuest(vm: @vm, auth: @guest_auth, prefix: prefix, suffix:suffix)
+      temp_name = gom.fileManager.CreateTemporaryFileInGuest(vm: @vm, auth: @guest_auth, prefix: prefix, suffix: suffix)
       write_file(temp_name, contents)
 
       temp_name
@@ -146,7 +148,7 @@ class Support
       uri = URI.parse(info.url)
 
       request = Net::HTTP::Get.new(uri.request_uri)
-      response = http_request(put_url, request)
+      response = http_request(info.url, request)
 
       if response.body.size != info.size
         raise format("Downloaded file has different size than reported: %s (%d bytes instead of %d bytes)", remote_file, response.body.size, info.size)
@@ -164,6 +166,7 @@ class Support
       true
     rescue RbVmomi::Fault => e
       raise unless e.message.start_with? "FileNotFound:"
+
       false
     end
 
@@ -176,6 +179,7 @@ class Support
       true
     rescue RbVmomi::Fault => e
       raise if e.message.start_with? "NotADirectory:"
+
       false
     end
 

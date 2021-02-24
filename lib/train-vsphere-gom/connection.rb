@@ -1,7 +1,7 @@
-require 'resolv' unless defined?(Resolv)
-require 'rbvmomi' unless defined?(RbVmomi)
+require "resolv" unless defined?(Resolv)
+require "rbvmomi" unless defined?(RbVmomi)
 
-require_relative 'guest_operations'
+require_relative "guest_operations"
 
 module TrainPlugins
   module VsphereGom
@@ -30,7 +30,7 @@ module TrainPlugins
         return unless vim
 
         vim.close
-        logger.info format('[VSphere-GOM] Closed connection to %<vm>s (VCenter %<vcenter>s)',
+        logger.info format("[VSphere-GOM] Closed connection to %<vm>s (VCenter %<vcenter>s)",
                            vm: options[:host],
                            vcenter: options[:vcenter_server])
       end
@@ -48,8 +48,8 @@ module TrainPlugins
       end
 
       def upload(locals, remote)
-        logger.debug format('Copy %<locals>s to %<remote>s',
-                            locals: Array(locals).join(', '),
+        logger.debug format("[VSphere-GOM] Copy %<locals>s to %<remote>s",
+                            locals: Array(locals).join(", "),
                             remote: remote)
 
         # Collect recursive list of directories and files
@@ -69,8 +69,8 @@ module TrainPlugins
       end
 
       def download(remotes, local)
-        logger.debug format('Download %<remotes>s to %<local>s',
-                            remotes: Array(Remotes).join(','),
+        logger.debug format("[VSphere-GOM] Download %<remotes>s to %<local>s",
+                            remotes: Array(Remotes).join(","),
                             local: local)
 
         Array(remotes).each do |remote|
@@ -80,13 +80,15 @@ module TrainPlugins
       end
 
       def run_command_via_connection(command)
-        logger.debug format('[VSphere-GOM] Sending command to %<vm>s (VCenter %<vcenter>s)',
+        logger.debug format("[VSphere-GOM] Sending command to %<vm>s (VCenter %<vcenter>s)",
                             vm: options[:host],
                             vcenter: options[:vcenter_server])
 
-        result = vm_guest.run(command)
+        result = vm_guest.run(command, shell_type: config[:shell_type].to_sym, timeout: config[:timeout].to_i)
+
         if windows? && result.exit_status != 0
-          logger.debug format('[VSphere-GOM] Received Windows exit code: ', hexit_code(result.exit_status))
+          logger.debug format("[VSphere-GOM] Received Windows exit code: %<hexcode>s",
+                              hexcode: hexit_code(result.exit_status))
         end
 
         result
@@ -119,13 +121,15 @@ module TrainPlugins
         username   = config[:user] || config[:username]
         password   = config[:password]
         ssl_verify = !config[:vcenter_insecure]
+        quick      = config[:quick]
 
-        @vm_guest = Support::GuestOperations.new(vim, vm, username, password, ssl_verify: ssl_verify)
+        @vm_guest = Support::GuestOperations.new(vim, vm, username, password, ssl_verify: ssl_verify, quick: quick)
         @vm_guest.logger = logger
+        @vm_guest
       end
 
       def os_family
-        return vm.guest.guestFamily == 'windowsGuest' ? :windows : :linux if vm.guest.guestFamily
+        return vm.guest.guestFamily == "windowsGuest" ? :windows : :linux if vm.guest.guestFamily
 
         # VMware tools are not initialized or missing, infer from Guest Id
         vm.config&.guestId =~ /^[Ww]in/ ? :windows : :linux
@@ -154,9 +158,6 @@ module TrainPlugins
           root_folder.findByUuid(config[:host])
         elsif inventory_path?(needle)
           root_folder.findByInventoryPath(config[:host])
-        elsif moref?(needle)
-          # TODO: Implement
-          raise 'Search by MoRef ID not yet supported'
         else
           root_folder.findByDnsName(config[:host])
         end
@@ -167,22 +168,21 @@ module TrainPlugins
       end
 
       def uuid?(uuid)
-        uuid.downcase.match? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+        uuid.downcase.match?(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
       end
 
       def inventory_path?(path)
-        path.include? '/'
+        path.include? "/"
       end
 
       def moref?(ref)
-        ref.match? /vm-[0-9]*/
+        ref.match?(/vm-[0-9]*/)
       end
 
       def search_type(needle)
         return "IP" if ip?(needle)
         return "UUID" if uuid?(needle)
         return "PATH" if inventory_path?(needle)
-        return "MOREF" if moref?(needle)
 
         "DNS"
       end

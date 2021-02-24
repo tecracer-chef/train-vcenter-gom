@@ -5,9 +5,10 @@ CommitMsg:
   HardTabs:
     enabled: true
 PreCommit:
-  RuboCop:
+  RakeTarget:
     enabled: true
-    on_warn: fail
+    targets:
+      - lint
   BundleAudit:
     enabled: true
   BundleCheck:
@@ -27,6 +28,8 @@ PreCommit:
     eol: "\n"
   Mdl:
     enabled: true
+    include:
+      - "*.md"
   Rspec:
     enabled: false
     required_executable: 'rspec'
